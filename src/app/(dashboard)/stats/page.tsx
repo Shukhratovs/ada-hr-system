@@ -166,6 +166,7 @@ export default function StatsPage() {
             <span className="text-xs text-slate-400 font-medium tabular-nums">{dateRangeLabel}</span>
           </div>
 
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100">
@@ -255,6 +256,7 @@ export default function StatsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

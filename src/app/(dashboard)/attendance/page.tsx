@@ -234,6 +234,7 @@ export default function AttendancePage() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-100">
@@ -338,6 +339,7 @@ export default function AttendancePage() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {selectedEmployee && (
