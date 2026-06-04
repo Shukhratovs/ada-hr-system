@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DIRECTOR
+  HR
+  EMPLOYEE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+}
+
+enum PayrollStatus {
+  PENDING
+  APPROVED
+  PAID
+}
+
+model Employee {
+  id             String    @id @default(cuid())
+  name           String
+  role           Role      @default(EMPLOYEE)
+  hourlyRate     Int
+  shiftStart     String    @default("09:00")
+  shiftEnd       String    @default("18:00")
+  workDays       Int[]
+  faceDescriptor Float[]
+  password       String?
+  phone          String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  attendances Attendance[]
+  payrolls    Payroll[]
+  advances    Advance[]
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  employeeId  String
+  date        DateTime         @db.Date
+  checkIn     DateTime?
+  checkOut    DateTime?
+  status      AttendanceStatus @default(PRESENT)
+  hoursWorked Float?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, date])
+  @@index([date])
+}
+
+model Payroll {
+  id             String        @id @default(cuid())
+  employeeId     String
+  weekStart      DateTime      @db.Date
+  weekEnd        DateTime      @db.Date
+  totalHours     Float
+  grossPay       BigInt
+  totalAdvances  BigInt        @default(0)
+  netPay         BigInt        @default(0)
+  status         PayrollStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, weekStart])
+}
+
+model Advance {
+  id         String   @id @default(cuid())
+  employeeId String
+  amount     BigInt
+  note       String?
+  date       DateTime @db.Date
+  weekStart  DateTime @db.Date
+  createdAt  DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, weekStart])
+}

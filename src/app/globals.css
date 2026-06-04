@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/* Override amber palette with logo brand red */
+@theme {
+  --color-amber-50:  #fff1f1;
+  --color-amber-100: #ffdcdc;
+  --color-amber-200: #ffbaba;
+  --color-amber-300: #ff8585;
+  --color-amber-400: #e05257;
+  --color-amber-500: #c8373c;
+  --color-amber-600: #a82e32;
+  --color-amber-700: #8b2428;
+  --color-amber-800: #6f1c1f;
+  --color-amber-900: #541417;
+  --color-amber-950: #2d070a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #f1f5f9;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 2px;
+}
