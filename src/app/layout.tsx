@@ -13,6 +13,10 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'HR Tizimi — ADA Lazzatli Sifat',
   description: 'ADA Lazzatli Sifat HR va Davomat tizimi',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
