@@ -26,7 +26,7 @@ interface Result {
   hours?: number
 }
 
-const EUCLIDEAN_THRESHOLD = 0.5
+const EUCLIDEAN_THRESHOLD = 0.6
 const SCAN_COOLDOWN_MS = 10000 // 10 seconds between scans per employee
 
 function euclideanDistance(a: number[], b: number[]): number {

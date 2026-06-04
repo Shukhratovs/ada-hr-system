@@ -8,7 +8,7 @@ function euclideanDistance(a: number[], b: number[]): number {
   return Math.sqrt(sum)
 }
 
-const DUPLICATE_THRESHOLD = 0.5
+const DUPLICATE_THRESHOLD = 0.6
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
