@@ -72,9 +72,9 @@ export default function StatsPage() {
     }
   }
 
-  const totalAbsent = stats?.reduce((s, e) => s + e.absentDays, 0) ?? 0
   const totalEarnings = stats?.reduce((s, e) => s + e.totalEarnings, 0) ?? 0
-  const totalPresent = stats?.reduce((s, e) => s + e.presentDays, 0) ?? 0
+  const totalAdvances = stats?.reduce((s, e) => s + e.totalAdvances, 0) ?? 0
+  const totalDebt = stats?.reduce((s, e) => s + e.debt, 0) ?? 0
 
   const dateRangeLabel = from && to
     ? `${format(new Date(from), 'dd.MM.yyyy')} – ${format(new Date(to), 'dd.MM.yyyy')}`
@@ -124,23 +124,23 @@ export default function StatsPage() {
       {hasLoaded && stats && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-            <div className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center mb-3">
+            <div className="w-8 h-8 bg-rose-100 text-rose-500 rounded-xl flex items-center justify-center mb-3">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-slate-900 tabular-nums leading-none">{totalPresent}</div>
-            <div className="text-xs text-slate-500 font-medium mt-1.5">{t('presentDays')}</div>
+            <div className="text-xl font-bold text-rose-500 tabular-nums leading-none">−{formatMoney(totalAdvances)}</div>
+            <div className="text-xs text-slate-500 font-medium mt-1.5">{lang === 'uz' ? 'Avanslar' : 'Авансы'}</div>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-            <div className="w-8 h-8 bg-red-100 text-red-500 rounded-xl flex items-center justify-center mb-3">
+            <div className="w-8 h-8 bg-orange-100 text-orange-500 rounded-xl flex items-center justify-center mb-3">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-slate-900 tabular-nums leading-none">{totalAbsent}</div>
-            <div className="text-xs text-slate-500 font-medium mt-1.5">{t('absentDays')}</div>
+            <div className="text-xl font-bold text-orange-500 tabular-nums leading-none">{formatMoney(totalDebt)}</div>
+            <div className="text-xs text-slate-500 font-medium mt-1.5">{lang === 'uz' ? 'Qarzlar' : 'Долги'}</div>
           </div>
 
           <div className="bg-slate-950 rounded-2xl shadow-sm border border-slate-800 p-4">
