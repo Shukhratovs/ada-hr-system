@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useLang } from '@/components/LanguageProvider'
 import { formatTime, formatHours } from '@/lib/utils'
 
@@ -118,9 +119,10 @@ function SessionHistoryModal({
 
 export default function AttendancePage() {
   const { t, lang } = useLang()
+  const searchParams = useSearchParams()
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [filter, setFilter] = useState('ALL')
+  const [filter, setFilter] = useState(() => searchParams.get('filter') ?? 'ALL')
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState<'checkIn' | 'checkOut' | 'hoursWorked'>('checkIn')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
