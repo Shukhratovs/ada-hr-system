@@ -223,6 +223,13 @@ export default function Sidebar() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950 border-t border-slate-800/60 flex items-stretch">
         {allNavItems.map((item) => {
           const active = pathname.startsWith(item.href)
+          const mobileLabel: Record<string, string> = {
+            dashboard: lang === 'uz' ? 'Bosh' : 'Главная',
+            employees: lang === 'uz' ? 'Xodimlar' : 'Сотрудники',
+            attendance: lang === 'uz' ? 'Davomat' : 'Учёт',
+            payroll: lang === 'uz' ? 'Maosh' : 'Зарплата',
+            stats: lang === 'uz' ? 'Statistika' : 'Статистика',
+          }
           return (
             <Link
               key={item.href}
@@ -232,7 +239,7 @@ export default function Sidebar() {
               }`}
             >
               {item.mobileIcon}
-              <span className="text-[9px] font-semibold">{t(item.key)}</span>
+              <span className="text-[9px] font-semibold leading-tight text-center">{mobileLabel[item.key] ?? t(item.key)}</span>
             </Link>
           )
         })}

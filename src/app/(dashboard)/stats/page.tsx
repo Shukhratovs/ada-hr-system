@@ -91,11 +91,11 @@ export default function StatsPage() {
       </div>
 
       {/* Date range filter */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-6 flex items-center gap-3 flex-wrap">
-        <div>
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-            {lang === 'uz' ? 'Sana oralig\'ini tanlang' : 'Выберите период'}
-          </p>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-6">
+        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+          {lang === 'uz' ? 'Sana oralig\'ini tanlang' : 'Выберите период'}
+        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <DateRangePicker
             from={from}
             to={to}
@@ -103,21 +103,21 @@ export default function StatsPage() {
             maxDate={today}
             lang={lang}
           />
+          <button
+            onClick={load}
+            disabled={loading || !from || !to}
+            className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm shadow-amber-200 disabled:opacity-50 w-full sm:w-auto"
+          >
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            )}
+            {t('applyFilter')}
+          </button>
         </div>
-        <button
-          onClick={load}
-          disabled={loading || !from || !to}
-          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm shadow-amber-200 disabled:opacity-50 mt-5"
-        >
-          {loading ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          )}
-          {t('applyFilter')}
-        </button>
       </div>
 
       {/* Summary cards — only shown after first load */}
