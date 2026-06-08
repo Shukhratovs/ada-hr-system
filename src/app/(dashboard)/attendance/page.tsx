@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useLang } from '@/components/LanguageProvider'
 import { formatTime, formatHours } from '@/lib/utils'
@@ -117,7 +117,7 @@ function SessionHistoryModal({
   )
 }
 
-export default function AttendancePage() {
+function AttendancePageInner() {
   const { t, lang } = useLang()
   const searchParams = useSearchParams()
   const [records, setRecords] = useState<AttendanceRecord[]>([])
@@ -353,5 +353,13 @@ export default function AttendancePage() {
         />
       )}
     </div>
+  )
+}
+
+export default function AttendancePage() {
+  return (
+    <Suspense>
+      <AttendancePageInner />
+    </Suspense>
   )
 }
