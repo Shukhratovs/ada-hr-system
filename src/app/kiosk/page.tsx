@@ -26,8 +26,9 @@ interface Result {
   hours?: number
 }
 
-const EUCLIDEAN_THRESHOLD = 0.6
-const SCAN_COOLDOWN_MS = 10000 // 10 seconds between scans per employee
+const EUCLIDEAN_THRESHOLD = 0.45
+const SCAN_COOLDOWN_MS = 10000
+const CONFIRM_FRAMES = 3 // same employee must match this many consecutive frames
 
 function euclideanDistance(a: number[], b: number[]): number {
   let sum = 0
@@ -82,6 +83,7 @@ export default function KioskPage() {
   const scanningRef = useRef(false)
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastScanMap = useRef<Map<string, number>>(new Map())
+  const confirmRef = useRef<{ id: string; count: number } | null>(null)
 
   // Clock
   useEffect(() => {
@@ -197,9 +199,26 @@ export default function KioskPage() {
       }
 
       if (!bestMatch || bestDist > EUCLIDEAN_THRESHOLD) {
+        // No confident match — reset confirmation streak
+        confirmRef.current = null
         frameId = requestAnimationFrame(scan)
         return
       }
+
+      // Require same employee to match CONFIRM_FRAMES consecutive frames
+      if (confirmRef.current?.id === bestMatch.id) {
+        confirmRef.current.count++
+      } else {
+        confirmRef.current = { id: bestMatch.id, count: 1 }
+      }
+
+      if (confirmRef.current.count < CONFIRM_FRAMES) {
+        frameId = requestAnimationFrame(scan)
+        return
+      }
+
+      // Confirmed — reset streak
+      confirmRef.current = null
 
       // Per-employee cooldown: ignore if scanned within SCAN_COOLDOWN_MS
       const lastScan = lastScanMap.current.get(bestMatch.id) ?? 0
