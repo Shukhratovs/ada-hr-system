@@ -4,36 +4,12 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLang } from '@/components/LanguageProvider'
 import Logo from '@/components/Logo'
 
-type KioskState =
-  | 'loading'
-  | 'ready'
-  | 'scanning'
-  | 'success_in'
-  | 'success_out'
-  | 'not_found'
-  | 'camera_error'
-
-interface FaceEmployee {
-  id: string
-  name: string
-  faceDescriptor: number[]
-}
+type KioskState = 'idle' | 'success_in' | 'success_out' | 'error'
 
 interface Result {
   name: string
-  action: string
-  late?: boolean
+  action: 'checkin' | 'checkout'
   hours?: number
-}
-
-const EUCLIDEAN_THRESHOLD = 0.45
-const SCAN_COOLDOWN_MS = 10000
-const CONFIRM_FRAMES = 3 // same employee must match this many consecutive frames
-
-function euclideanDistance(a: number[], b: number[]): number {
-  let sum = 0
-  for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2
-  return Math.sqrt(sum)
 }
 
 function playTone(type: 'in' | 'out') {
@@ -57,7 +33,7 @@ function playTone(type: 'in' | 'out') {
     osc.start(ctx.currentTime)
     osc.stop(ctx.currentTime + 0.6)
     setTimeout(() => ctx.close(), 1000)
-  } catch { /* ignore if AudioContext not available */ }
+  } catch { /* ignore */ }
 }
 
 function speak(text: string) {
@@ -66,321 +42,237 @@ function speak(text: string) {
   const u = new SpeechSynthesisUtterance(text)
   u.lang = 'en-US'
   u.rate = 0.95
-  u.volume = 1
   window.speechSynthesis.speak(u)
 }
 
 export default function KioskPage() {
-  const { t, lang } = useLang()
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [kioskState, setKioskState] = useState<KioskState>('loading')
+  const { lang } = useLang()
+  const [pin, setPin] = useState('')
+  const [state, setState] = useState<KioskState>('idle')
   const [result, setResult] = useState<Result | null>(null)
   const [clock, setClock] = useState(new Date())
-  const [employees, setEmployees] = useState<FaceEmployee[]>([])
-  const faceapiRef = useRef<typeof import('face-api.js') | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const scanningRef = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastScanMap = useRef<Map<string, number>>(new Map())
-  const confirmRef = useRef<{ id: string; count: number } | null>(null)
 
-  // Clock
   useEffect(() => {
     const id = setInterval(() => setClock(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  // Init face-api + camera
-  useEffect(() => {
-    let cancelled = false
-
-    async function init() {
-      try {
-        const fa = await import('face-api.js')
-        await Promise.all([
-          fa.nets.tinyFaceDetector.loadFromUri('/models'),
-          fa.nets.faceLandmark68Net.loadFromUri('/models'),
-          fa.nets.faceRecognitionNet.loadFromUri('/models'),
-        ])
-        if (cancelled) return
-        faceapiRef.current = fa
-
-        const data = await fetch('/api/attendance/checkin').then((r) => r.json())
-        if (cancelled) return
-        setEmployees(data)
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: 640, height: 480 },
-        })
-        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return }
-        streamRef.current = stream
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          await videoRef.current.play()
-        }
-
-        setKioskState('ready')
-      } catch (e) {
-        console.error(e)
-        setKioskState('camera_error')
-      }
-    }
-
-    init()
-    return () => {
-      cancelled = true
-      streamRef.current?.getTracks().forEach((t) => t.stop())
-      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
-    }
+  const reset = useCallback(() => {
+    setPin('')
+    setState('idle')
+    setResult(null)
+    setSubmitting(false)
   }, [])
 
   const scheduleReset = useCallback(() => {
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
-    resetTimerRef.current = setTimeout(() => {
-      setKioskState('ready')
-      setResult(null)
-      scanningRef.current = false
-      fetch('/api/attendance/checkin').then((r) => r.json()).then(setEmployees)
-    }, 4000)
-  }, [])
+    resetTimerRef.current = setTimeout(reset, 4000)
+  }, [reset])
 
-  // Auto scan loop
-  useEffect(() => {
-    if (kioskState !== 'ready') return
-
-    const fa = faceapiRef.current
-    if (!fa || !videoRef.current) return
-
-    let frameId: number
-
-    const scan = async () => {
-      if (scanningRef.current || kioskState !== 'ready') return
-
-      const video = videoRef.current
-      if (!video || video.readyState < 2) {
-        frameId = requestAnimationFrame(scan)
-        return
-      }
-
-      let detection
-      try {
-        detection = await fa
-          .detectSingleFace(video, new fa.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
-          .withFaceLandmarks()
-          .withFaceDescriptor()
-      } catch {
-        detection = null
-      }
-
-      if (!detection) {
-        frameId = requestAnimationFrame(scan)
-        return
-      }
-
-      const canvas = canvasRef.current
-      if (canvas) {
-        const dims = fa.matchDimensions(canvas, video, true)
-        fa.draw.drawDetections(canvas, fa.resizeResults(detection, dims))
-      }
-
-      const liveDescriptor = Array.from(detection.descriptor) as number[]
-      let bestMatch: FaceEmployee | null = null
-      let bestDist = Infinity
-
-      for (const emp of employees) {
-        if (!emp.faceDescriptor.length) continue
-        const dist = euclideanDistance(liveDescriptor, emp.faceDescriptor)
-        if (dist < bestDist) {
-          bestDist = dist
-          bestMatch = emp
-        }
-      }
-
-      if (!bestMatch || bestDist > EUCLIDEAN_THRESHOLD) {
-        // No confident match — reset confirmation streak
-        confirmRef.current = null
-        frameId = requestAnimationFrame(scan)
-        return
-      }
-
-      // Require same employee to match CONFIRM_FRAMES consecutive frames
-      if (confirmRef.current?.id === bestMatch.id) {
-        confirmRef.current.count++
-      } else {
-        confirmRef.current = { id: bestMatch.id, count: 1 }
-      }
-
-      if (confirmRef.current.count < CONFIRM_FRAMES) {
-        frameId = requestAnimationFrame(scan)
-        return
-      }
-
-      // Confirmed — reset streak
-      confirmRef.current = null
-
-      // Per-employee cooldown: ignore if scanned within SCAN_COOLDOWN_MS
-      const lastScan = lastScanMap.current.get(bestMatch.id) ?? 0
-      if (Date.now() - lastScan < SCAN_COOLDOWN_MS) {
-        frameId = requestAnimationFrame(scan)
-        return
-      }
-
-      scanningRef.current = true
-      lastScanMap.current.set(bestMatch.id, Date.now())
-      setKioskState('scanning')
-
-      const res = await fetch('/api/attendance/checkin', {
+  const submitPin = useCallback(async (enteredPin: string) => {
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/attendance/pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId: bestMatch.id }),
+        body: JSON.stringify({ pin: enteredPin }),
       })
       const data = await res.json()
 
+      if (!res.ok || data.error) {
+        setState('error')
+        scheduleReset()
+        return
+      }
+
       if (data.action === 'checkin') {
-        setResult({ name: data.employee.name, action: 'checkin', late: data.late })
-        setKioskState('success_in')
+        setResult({ name: data.employee.name, action: 'checkin' })
+        setState('success_in')
         playTone('in')
         setTimeout(() => speak('Welcome'), 650)
-      } else if (data.action === 'checkout') {
+      } else {
         setResult({ name: data.employee.name, action: 'checkout', hours: data.hours })
-        setKioskState('success_out')
+        setState('success_out')
         playTone('out')
         setTimeout(() => speak('Goodbye'), 650)
       }
-
       scheduleReset()
+    } catch {
+      setState('error')
+      scheduleReset()
+    }
+  }, [submitting, scheduleReset])
+
+  const pressKey = useCallback((key: string) => {
+    if (state !== 'idle' || submitting) return
+    if (key === 'del') {
+      setPin((p) => p.slice(0, -1))
       return
     }
+    setPin((prev) => {
+      const next = prev + key
+      if (next.length === 4) {
+        setTimeout(() => submitPin(next), 80)
+      }
+      return next
+    })
+  }, [state, submitting, submitPin])
 
-    frameId = requestAnimationFrame(scan)
-    return () => cancelAnimationFrame(frameId)
-  }, [kioskState, employees, scheduleReset])
+  // Keyboard support
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') pressKey(e.key)
+      else if (e.key === 'Backspace') pressKey('del')
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [pressKey])
 
-  const stateConfig = {
-    loading:      { bg: 'from-slate-950 to-slate-900', text: t('loadingModels'), icon: '⏳', color: 'text-slate-400' },
-    ready:        { bg: 'from-slate-950 to-slate-900', text: t('lookAtCamera'),  icon: '👁️', color: 'text-slate-400' },
-    scanning:     { bg: 'from-slate-950 to-slate-900', text: t('scanning'),      icon: '🔍', color: 'text-amber-400' },
-    success_in:   { bg: 'from-emerald-950 to-slate-950', text: t('checkedIn'),   icon: '✅', color: 'text-emerald-400' },
-    success_out:  { bg: 'from-blue-950 to-slate-950',    text: t('checkedOut'),  icon: '👋', color: 'text-blue-400' },
+  const bgClass =
+    state === 'success_in'  ? 'from-emerald-950 to-slate-950' :
+    state === 'success_out' ? 'from-blue-950 to-slate-950' :
+    state === 'error'       ? 'from-red-950 to-slate-950' :
+                              'from-slate-950 to-slate-900'
 
-    not_found:    { bg: 'from-red-950 to-slate-950',     text: t('faceNotFound'), icon: '❌', color: 'text-red-400' },
-    camera_error: { bg: 'from-red-950 to-slate-950',     text: t('cameraError'),  icon: '📷', color: 'text-red-400' },
-  }
-
-  const cfg = stateConfig[kioskState]
+  const keys = ['1','2','3','4','5','6','7','8','9','del','0','']
 
   return (
-    <div className={`fixed inset-0 bg-gradient-to-br ${cfg.bg} flex flex-col items-center justify-center transition-all duration-700`}>
+    <div className={`fixed inset-0 bg-gradient-to-br ${bgClass} flex flex-col items-center justify-center transition-all duration-700 select-none`}>
 
-      {/* Clock — top right */}
-      <div className="absolute top-8 right-10 text-right">
-        <div className="text-4xl font-bold text-white tabular-nums tracking-tight">
-          {clock.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-        </div>
-        <div className="text-slate-500 text-sm mt-1 font-medium">
-          {clock.toLocaleDateString(lang === 'uz' ? 'uz-UZ' : 'ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </div>
-      </div>
-
-      {/* Lang toggle — top left */}
-      <div className="absolute top-8 left-10 flex gap-1 bg-slate-900/60 backdrop-blur-sm rounded-xl p-1 border border-slate-800/50">
-        {(['uz', 'ru'] as const).map((l) => (
-          <button
-            key={l}
-            onClick={() => {}}
-            className="text-xs text-slate-500 px-3 py-1.5 rounded-lg font-semibold"
-          >
-            {l.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      {/* Title — top center */}
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 text-center">
-        <div className="flex items-center gap-2.5 justify-center">
+      {/* Top bar */}
+      <div className="absolute top-8 left-0 right-0 flex items-center justify-between px-10">
+        <div className="flex items-center gap-2.5">
           <Logo size="sm" />
-          <div className="text-amber-400 text-lg font-bold tracking-tight">ADA Lazzatli Sifat</div>
+          <div className="text-amber-400 text-base font-bold tracking-tight">ADA Lazzatli Sifat</div>
         </div>
-        <div className="text-slate-600 text-sm mt-0.5 font-medium">{t('kioskTitle')}</div>
+        <div className="text-right">
+          <div className="text-3xl font-bold text-white tabular-nums tracking-tight">
+            {clock.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </div>
+          <div className="text-slate-500 text-xs mt-0.5 font-medium">
+            {clock.toLocaleDateString(lang === 'uz' ? 'uz-UZ' : 'ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </div>
+        </div>
       </div>
 
-      {/* Camera */}
-      <div className="relative rounded-3xl overflow-hidden border border-slate-700/50 shadow-2xl" style={{ width: 420, height: 315 }}>
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover scale-x-[-1]"
-          muted
-          playsInline
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full scale-x-[-1]"
-        />
+      {/* Main content */}
+      {state === 'idle' && (
+        <div className="flex flex-col items-center gap-8">
+          {/* Label */}
+          <div className="text-center">
+            <p className="text-slate-400 text-sm font-medium">
+              {lang === 'uz' ? 'PIN kodingizni kiriting' : 'Введите ваш PIN код'}
+            </p>
+          </div>
 
-        {/* Corner brackets */}
-        {kioskState === 'ready' && (
-          <>
-            <div className="absolute top-3 left-3 w-8 h-8 border-t-2 border-l-2 border-amber-400/60 rounded-tl-lg" />
-            <div className="absolute top-3 right-3 w-8 h-8 border-t-2 border-r-2 border-amber-400/60 rounded-tr-lg" />
-            <div className="absolute bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 border-amber-400/60 rounded-bl-lg" />
-            <div className="absolute bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 border-amber-400/60 rounded-br-lg" />
-          </>
-        )}
+          {/* PIN dots */}
+          <div className="flex items-center gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`w-5 h-5 rounded-full border-2 transition-all duration-150 ${
+                  i < pin.length
+                    ? 'bg-amber-400 border-amber-400 scale-110'
+                    : 'bg-transparent border-slate-600'
+                }`}
+              />
+            ))}
+          </div>
 
-        {/* State overlay */}
-        {kioskState !== 'ready' && kioskState !== 'loading' && (
-          <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center">
-            <div className="text-5xl mb-3">{cfg.icon}</div>
-            <div className={`text-xl font-bold ${cfg.color}`}>{cfg.text}</div>
-            {kioskState === 'success_in' && result?.name && (
-              <div className="text-slate-300 mt-1.5 text-base font-medium">{result.name}</div>
-            )}
-            {kioskState === 'success_out' && result && (
-              <div className="text-slate-300 mt-1.5 text-base font-medium">
-                {result.name}
+          {/* Numpad */}
+          <div className="grid grid-cols-3 gap-3">
+            {keys.map((key, idx) => {
+              if (key === '') return <div key={idx} />
+              if (key === 'del') return (
+                <button
+                  key="del"
+                  onClick={() => pressKey('del')}
+                  className="w-20 h-20 rounded-2xl bg-slate-800/60 hover:bg-slate-700/60 active:bg-slate-600/60 text-slate-400 hover:text-white flex items-center justify-center transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                  </svg>
+                </button>
+              )
+              return (
+                <button
+                  key={key}
+                  onClick={() => pressKey(key)}
+                  className="w-20 h-20 rounded-2xl bg-slate-800/60 hover:bg-slate-700/60 active:bg-amber-500/30 active:scale-95 text-white text-2xl font-semibold transition-all duration-100 border border-slate-700/40 hover:border-slate-600/60"
+                >
+                  {key}
+                </button>
+              )
+            })}
+          </div>
+
+          {submitting && (
+            <div className="flex items-center gap-2 text-amber-400 text-sm font-medium">
+              <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+              {lang === 'uz' ? 'Tekshirilmoqda...' : 'Проверка...'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Success check-in */}
+      {state === 'success_in' && result && (
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center">
+            <svg className="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div className="text-emerald-400 text-2xl font-bold">{lang === 'uz' ? 'Xush kelibsiz!' : 'Добро пожаловать!'}</div>
+            <div className="text-white text-xl font-semibold mt-1">{result.name}</div>
+            <div className="text-slate-400 text-sm mt-1">{lang === 'uz' ? 'Kirish qayd etildi' : 'Вход отмечен'}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Success check-out */}
+      {state === 'success_out' && result && (
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center">
+            <svg className="w-10 h-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </div>
+          <div>
+            <div className="text-blue-400 text-2xl font-bold">{lang === 'uz' ? 'Xayr!' : 'До свидания!'}</div>
+            <div className="text-white text-xl font-semibold mt-1">{result.name}</div>
+            {result.hours !== undefined && (
+              <div className="text-slate-400 text-sm mt-1">
+                {lang === 'uz' ? `${Math.floor(result.hours * 60)} daqiqa ishlandi` : `Отработано ${Math.floor(result.hours * 60)} минут`}
               </div>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {kioskState === 'loading' && (
-          <div className="absolute inset-0 bg-slate-950 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
-              <div className="text-slate-500 text-sm font-medium">{t('loadingModels')}</div>
-            </div>
+      {/* Error */}
+      {state === 'error' && (
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center">
+            <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
-        )}
-      </div>
+          <div>
+            <div className="text-red-400 text-2xl font-bold">{lang === 'uz' ? 'PIN noto\'g\'ri' : 'Неверный PIN'}</div>
+            <div className="text-slate-400 text-sm mt-1">{lang === 'uz' ? 'Qaytadan urinib ko\'ring' : 'Попробуйте снова'}</div>
+          </div>
+        </div>
+      )}
 
-      {/* Status bar */}
-      <div className="mt-7 text-center min-h-10">
-        {kioskState === 'ready' && (
-          <p className="text-slate-600 text-sm font-medium animate-pulse">{t('lookAtCamera')}</p>
-        )}
-        {kioskState === 'success_in' && (
-          <div className="text-emerald-400 font-bold text-xl">
-            {t('welcome')}, {result?.name}!
-          </div>
-        )}
-        {kioskState === 'success_out' && (
-          <div className="text-blue-400 font-bold text-xl">
-            {t('goodbye')}, {result?.name}!
-          </div>
-        )}
-        {kioskState === 'scanning' && (
-          <div className="flex items-center gap-2 text-amber-400 font-semibold text-sm justify-center">
-            <div className="w-3.5 h-3.5 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
-            {t('scanning')}
-          </div>
-        )}
-      </div>
-
-      {employees.length === 0 && kioskState === 'ready' && (
+      {/* Bottom hint */}
+      {state === 'idle' && !submitting && (
         <p className="absolute bottom-8 text-slate-700 text-xs font-medium">
-          {lang === 'uz' ? "Ro'yxatdan o'tgan yuzlar yo'q" : 'Нет зарегистрированных лиц'}
+          {lang === 'uz' ? "HR tizimi — ADA Lazzatli Sifat" : 'HR система — ADA Lazzatli Sifat'}
         </p>
       )}
     </div>

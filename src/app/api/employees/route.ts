@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { name, role, hourlyRate, phone, password } = body
+  const { name, role, hourlyRate, phone, password, pin } = body
 
   if (!name || !role || !hourlyRate) {
     return NextResponse.json({ error: 'Required fields missing' }, { status: 400 })
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       workDays: [],
       phone: phone || null,
       password: hashedPassword || null,
+      pin: pin || null,
       faceDescriptor: [],
     },
   })

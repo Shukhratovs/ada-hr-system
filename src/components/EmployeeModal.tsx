@@ -10,6 +10,7 @@ interface Employee {
   role: string
   hourlyRate: number
   phone: string
+  pin?: string
   active?: boolean
 }
 
@@ -29,6 +30,7 @@ export default function EmployeeModal({ employee, onClose, onSaved }: Props) {
     phone: '',
   })
   const [password, setPassword] = useState('')
+  const [pin, setPin] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function EmployeeModal({ employee, onClose, onSaved }: Props) {
     try {
       const body: Record<string, unknown> = { ...form }
       if (password) body.password = password
+      if (pin) body.pin = pin
 
       const url = employee?.id ? `/api/employees/${employee.id}` : '/api/employees'
       const method = employee?.id ? 'PUT' : 'POST'
@@ -156,6 +159,29 @@ export default function EmployeeModal({ employee, onClose, onSaved }: Props) {
               placeholder="+998 90 000 00 00"
             />
           </div>
+
+          {/* PIN — for kiosk check-in (EMPLOYEE role) */}
+          {form.role === 'EMPLOYEE' && (
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                {lang === 'uz' ? 'Kiosk PIN (4 raqam)' : 'PIN для киоска (4 цифры)'}
+              </label>
+              <input
+                className={inputClass}
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder={employee?.pin ? '••••' : '1234'}
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                {lang === 'uz'
+                  ? "Xodim kioskda shu PIN bilan kiradi. Bo'sh qoldiring — o'zgarmaydi."
+                  : 'Сотрудник входит в киоск с этим PIN. Оставьте пустым — не изменится.'}
+              </p>
+            </div>
+          )}
 
           {/* Password — required for HR/Director */}
           {(form.role === 'HR' || form.role === 'DIRECTOR') && (
