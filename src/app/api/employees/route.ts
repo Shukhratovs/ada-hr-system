@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth'
 
 export async function GET() {
   const employees = await prisma.employee.findMany({
+    where: { role: { not: 'DIRECTOR' } },
     orderBy: { createdAt: 'asc' },
     select: {
       id: true,

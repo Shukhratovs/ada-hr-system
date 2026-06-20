@@ -41,6 +41,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params
 
+  // Prevent deleting director accounts
+  const target = await prisma.employee.findUnique({ where: { id }, select: { role: true } })
+  if (target?.role === 'DIRECTOR') {
+    return NextResponse.json({ error: 'Cannot delete director' }, { status: 403 })
+  }
+
   // Delete related records first, then the employee
   await prisma.attendance.deleteMany({ where: { employeeId: id } })
   await prisma.payroll.deleteMany({ where: { employeeId: id } })
