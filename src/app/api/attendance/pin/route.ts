@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'PIN required' }, { status: 400 })
   }
 
-  const employee = await prisma.employee.findUnique({
+  const employee = await prisma.employee.findFirst({
     where: { pin, active: true },
   })
 
