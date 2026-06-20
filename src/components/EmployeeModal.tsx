@@ -10,7 +10,7 @@ interface Employee {
   role: string
   hourlyRate: number
   phone: string
-  pin?: string
+  pin?: string | null
   active?: boolean
 }
 

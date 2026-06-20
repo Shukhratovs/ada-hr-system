@@ -15,7 +15,7 @@ export async function GET() {
       phone: true,
       active: true,
       createdAt: true,
-      faceDescriptor: true,
+      pin: true,
     },
   })
   return NextResponse.json(employees)
