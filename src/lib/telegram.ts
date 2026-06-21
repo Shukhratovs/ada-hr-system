@@ -1,15 +1,20 @@
 export async function sendTelegram(message: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_CHAT_ID
-  if (!token || !chatId) return
+  const chatIds = process.env.TELEGRAM_CHAT_ID
+  if (!token || !chatIds) return
 
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' }),
-    })
-  } catch {
-    // Don't fail checkin if Telegram is down
-  }
+  // Support multiple recipients: comma-separated chat IDs
+  const ids = chatIds.split(',').map((id) => id.trim()).filter(Boolean)
+
+  await Promise.all(
+    ids.map((chatId) =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' }),
+      }).catch(() => {
+        // Don't fail checkin if Telegram is down for one recipient
+      })
+    )
+  )
 }
