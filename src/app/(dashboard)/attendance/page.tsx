@@ -128,7 +128,10 @@ function ManualEntryModal({ onClose, onSaved, defaultDate, lang }: {
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [employeeId, setEmployeeId] = useState('')
   const [date, setDate] = useState(defaultDate)
-  const [checkIn, setCheckIn] = useState('09:00')
+  const [checkIn, setCheckIn] = useState(() => {
+    const now = new Date()
+    return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
+  })
   const [checkOut, setCheckOut] = useState('')
   const [saving, setSaving] = useState(false)
 

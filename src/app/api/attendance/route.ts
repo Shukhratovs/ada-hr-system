@@ -84,12 +84,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Aggregate: first checkIn, last checkOut, sum of hoursWorked
+    // Aggregate: first checkIn, latest non-null checkOut across all sessions, sum of hoursWorked
     const firstCheckIn = empSessions[0].checkIn
     const lastSession = empSessions[empSessions.length - 1]
-    const lastCheckOut = lastSession.checkOut ?? null
+    const latestCheckOut = empSessions.reduce<Date | null>((max, s) => {
+      if (!s.checkOut) return max
+      if (!max) return s.checkOut
+      return s.checkOut > max ? s.checkOut : max
+    }, null)
     const totalHours = empSessions.reduce((sum, s) => sum + (s.hoursWorked ?? 0), 0)
-    // Active if the last session has no checkout yet
+    // Active if the most recent check-in session has no checkout
     const isActive = !lastSession.checkOut
     const status = isActive ? 'PRESENT' : empSessions[0].status
 
@@ -97,7 +101,7 @@ export async function GET(req: NextRequest) {
       id: empSessions[0].id,
       date: empSessions[0].date,
       checkIn: firstCheckIn,
-      checkOut: lastCheckOut,
+      checkOut: latestCheckOut,
       status,
       hoursWorked: totalHours > 0 ? totalHours : null,
       employee: emp,
