@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLang } from '@/components/LanguageProvider'
 import Logo from '@/components/Logo'
 
-type KioskState = 'idle' | 'success_in' | 'success_out' | 'error'
+type KioskState = 'idle' | 'confirming' | 'submitting' | 'success_in' | 'success_out' | 'error' | 'error_mismatch'
 
 interface Result {
   name: string
@@ -12,7 +12,7 @@ interface Result {
   hours?: number
 }
 
-function playTone(type: 'in' | 'out') {
+function playTone(type: 'in' | 'out' | 'error') {
   try {
     const ctx = new AudioContext()
     const osc = ctx.createOscillator()
@@ -24,9 +24,12 @@ function playTone(type: 'in' | 'out') {
       osc.frequency.setValueAtTime(523, ctx.currentTime)
       osc.frequency.setValueAtTime(659, ctx.currentTime + 0.15)
       osc.frequency.setValueAtTime(784, ctx.currentTime + 0.3)
-    } else {
+    } else if (type === 'out') {
       osc.frequency.setValueAtTime(784, ctx.currentTime)
       osc.frequency.setValueAtTime(523, ctx.currentTime + 0.25)
+    } else {
+      osc.frequency.setValueAtTime(300, ctx.currentTime)
+      osc.frequency.setValueAtTime(250, ctx.currentTime + 0.2)
     }
     gain.gain.setValueAtTime(0.4, ctx.currentTime)
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55)
@@ -48,10 +51,10 @@ function speak(text: string) {
 export default function KioskPage() {
   const { lang } = useLang()
   const [pin, setPin] = useState('')
+  const [firstPin, setFirstPin] = useState('')
   const [state, setState] = useState<KioskState>('idle')
   const [result, setResult] = useState<Result | null>(null)
   const [clock, setClock] = useState(new Date())
-  const [submitting, setSubmitting] = useState(false)
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -61,28 +64,28 @@ export default function KioskPage() {
 
   const reset = useCallback(() => {
     setPin('')
+    setFirstPin('')
     setState('idle')
     setResult(null)
-    setSubmitting(false)
   }, [])
 
-  const scheduleReset = useCallback(() => {
+  const scheduleReset = useCallback((ms = 3500) => {
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
-    resetTimerRef.current = setTimeout(reset, 4000)
+    resetTimerRef.current = setTimeout(reset, ms)
   }, [reset])
 
-  const submitPin = useCallback(async (enteredPin: string) => {
-    if (submitting) return
-    setSubmitting(true)
+  const submitPin = useCallback(async (confirmedPin: string) => {
+    setState('submitting')
     try {
       const res = await fetch('/api/attendance/pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: enteredPin }),
+        body: JSON.stringify({ pin: confirmedPin }),
       })
       const data = await res.json()
 
       if (!res.ok || data.error) {
+        playTone('error')
         setState('error')
         scheduleReset()
         return
@@ -99,29 +102,52 @@ export default function KioskPage() {
         playTone('out')
         setTimeout(() => speak('Goodbye'), 650)
       }
-      scheduleReset()
+      scheduleReset(4000)
     } catch {
+      playTone('error')
       setState('error')
       scheduleReset()
     }
-  }, [submitting, scheduleReset])
+  }, [scheduleReset])
 
   const pressKey = useCallback((key: string) => {
-    if (state !== 'idle' || submitting) return
+    if (state === 'submitting' || state === 'success_in' || state === 'success_out') return
+
+    // Allow del/input during idle, confirming, error_mismatch (after restart)
+    if (state !== 'idle' && state !== 'confirming') return
+
     if (key === 'del') {
       setPin((p) => p.slice(0, -1))
       return
     }
+
     setPin((prev) => {
       const next = prev + key
       if (next.length === 4) {
-        setTimeout(() => submitPin(next), 80)
+        if (state === 'idle') {
+          // First PIN entered — move to confirm
+          setTimeout(() => {
+            setFirstPin(next)
+            setPin('')
+            setState('confirming')
+          }, 80)
+        } else if (state === 'confirming') {
+          // Second PIN entered — compare
+          setTimeout(() => {
+            if (next === firstPin) {
+              submitPin(next)
+            } else {
+              playTone('error')
+              setState('error_mismatch')
+              scheduleReset(3500)
+            }
+          }, 80)
+        }
       }
       return next
     })
-  }, [state, submitting, submitPin])
+  }, [state, firstPin, submitPin, scheduleReset])
 
-  // Keyboard support
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key >= '0' && e.key <= '9') pressKey(e.key)
@@ -132,15 +158,18 @@ export default function KioskPage() {
   }, [pressKey])
 
   const bgClass =
-    state === 'success_in'  ? 'from-emerald-950 to-slate-950' :
-    state === 'success_out' ? 'from-blue-950 to-slate-950' :
-    state === 'error'       ? 'from-red-950 to-slate-950' :
-                              'from-slate-950 to-slate-900'
+    state === 'success_in'      ? 'from-emerald-950 to-slate-950' :
+    state === 'success_out'     ? 'from-blue-950 to-slate-950' :
+    state === 'error'           ? 'from-red-950 to-slate-950' :
+    state === 'error_mismatch'  ? 'from-orange-950 to-slate-950' :
+    state === 'confirming'      ? 'from-amber-950 to-slate-950' :
+                                  'from-slate-950 to-slate-900'
 
+  const isInputActive = state === 'idle' || state === 'confirming'
   const keys = ['1','2','3','4','5','6','7','8','9','del','0','']
 
   return (
-    <div className={`fixed inset-0 bg-gradient-to-br ${bgClass} flex flex-col items-center justify-center transition-all duration-700 select-none`}>
+    <div className={`fixed inset-0 bg-gradient-to-br ${bgClass} flex flex-col items-center justify-center transition-all duration-500 select-none`}>
 
       {/* Top bar */}
       <div className="absolute top-8 left-0 right-0 flex items-center justify-between px-10">
@@ -158,14 +187,22 @@ export default function KioskPage() {
         </div>
       </div>
 
-      {/* Main content */}
-      {state === 'idle' && (
+      {/* PIN input states */}
+      {isInputActive && (
         <div className="flex flex-col items-center gap-8">
           {/* Label */}
-          <div className="text-center">
-            <p className="text-slate-400 text-sm font-medium">
-              {lang === 'uz' ? 'PIN kodingizni kiriting' : 'Введите ваш PIN код'}
-            </p>
+          <div className="text-center space-y-1">
+            {state === 'idle' ? (
+              <p className="text-slate-300 text-base font-semibold">
+                {lang === 'uz' ? 'PIN kodingizni kiriting' : 'Введите ваш PIN код'}
+              </p>
+            ) : (
+              <>
+                <p className="text-amber-400 text-base font-semibold">
+                  {lang === 'uz' ? 'PIN kodni tasdiqlash uchun qaytadan kiriting' : 'Введите PIN повторно для подтверждения'}
+                </p>
+              </>
+            )}
           </div>
 
           {/* PIN dots */}
@@ -175,7 +212,7 @@ export default function KioskPage() {
                 key={i}
                 className={`w-5 h-5 rounded-full border-2 transition-all duration-150 ${
                   i < pin.length
-                    ? 'bg-amber-400 border-amber-400 scale-110'
+                    ? (state === 'confirming' ? 'bg-amber-400 border-amber-400 scale-110' : 'bg-white border-white scale-110')
                     : 'bg-transparent border-slate-600'
                 }`}
               />
@@ -208,13 +245,16 @@ export default function KioskPage() {
               )
             })}
           </div>
+        </div>
+      )}
 
-          {submitting && (
-            <div className="flex items-center gap-2 text-amber-400 text-sm font-medium">
-              <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
-              {lang === 'uz' ? 'Tekshirilmoqda...' : 'Проверка...'}
-            </div>
-          )}
+      {/* Submitting */}
+      {state === 'submitting' && (
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+          <p className="text-slate-400 text-sm font-medium">
+            {lang === 'uz' ? 'Tekshirilmoqda...' : 'Проверка...'}
+          </p>
         </div>
       )}
 
@@ -254,7 +294,7 @@ export default function KioskPage() {
         </div>
       )}
 
-      {/* Error */}
+      {/* Wrong PIN */}
       {state === 'error' && (
         <div className="flex flex-col items-center gap-5 text-center">
           <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center">
@@ -263,16 +303,35 @@ export default function KioskPage() {
             </svg>
           </div>
           <div>
-            <div className="text-red-400 text-2xl font-bold">{lang === 'uz' ? 'PIN noto\'g\'ri' : 'Неверный PIN'}</div>
+            <div className="text-red-400 text-2xl font-bold">{lang === 'uz' ? "PIN noto'g'ri" : 'Неверный PIN'}</div>
             <div className="text-slate-400 text-sm mt-1">{lang === 'uz' ? 'Qaytadan urinib ko\'ring' : 'Попробуйте снова'}</div>
           </div>
         </div>
       )}
 
+      {/* Mismatch */}
+      {state === 'error_mismatch' && (
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="w-20 h-20 bg-orange-500/20 rounded-full flex items-center justify-center">
+            <svg className="w-10 h-10 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <div className="text-orange-400 text-2xl font-bold">
+              {lang === 'uz' ? "PIN kodni ikki xil kiritdingiz" : 'PIN коды не совпадают'}
+            </div>
+            <div className="text-slate-400 text-sm mt-1">
+              {lang === 'uz' ? 'Qaytadan boshlang' : 'Начните заново'}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom hint */}
-      {state === 'idle' && !submitting && (
+      {state === 'idle' && (
         <p className="absolute bottom-8 text-slate-700 text-xs font-medium">
-          {lang === 'uz' ? "HR tizimi — ADA Lazzatli Sifat" : 'HR система — ADA Lazzatli Sifat'}
+          HR tizimi — ADA Lazzatli Sifat
         </p>
       )}
     </div>

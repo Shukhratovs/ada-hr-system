@@ -3,7 +3,9 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useLang } from '@/components/LanguageProvider'
+import { useAuth } from '@/components/AuthProvider'
 import { formatTime, formatHours } from '@/lib/utils'
+import toast from 'react-hot-toast'
 
 interface AttendanceRecord {
   id: string
@@ -117,8 +119,89 @@ function SessionHistoryModal({
   )
 }
 
+function ManualEntryModal({ onClose, onSaved, defaultDate, lang }: {
+  onClose: () => void
+  onSaved: () => void
+  defaultDate: string
+  lang: string
+}) {
+  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
+  const [employeeId, setEmployeeId] = useState('')
+  const [date, setDate] = useState(defaultDate)
+  const [checkIn, setCheckIn] = useState('09:00')
+  const [checkOut, setCheckOut] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/employees').then(r => r.json()).then(setEmployees)
+  }, [])
+
+  const submit = async () => {
+    if (!employeeId || !date || !checkIn) return
+    setSaving(true)
+    const res = await fetch('/api/attendance/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeId, date, checkIn, checkOut: checkOut || null }),
+    })
+    setSaving(false)
+    if (res.ok) { toast.success(lang === 'uz' ? 'Qo\'shildi' : 'Добавлено'); onSaved(); onClose() }
+    else toast.error(lang === 'uz' ? 'Xato' : 'Ошибка')
+  }
+
+  const inputClass = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-300 transition-all'
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-100">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-50">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">{lang === 'uz' ? 'Qo\'lda kirish qo\'shish' : 'Добавить вручную'}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{lang === 'uz' ? 'Unutilgan kirish uchun' : 'Для забытой отметки'}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 transition-all">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{lang === 'uz' ? 'Xodim' : 'Сотрудник'}</label>
+            <select className={inputClass} value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
+              <option value="">{lang === 'uz' ? 'Tanlang...' : 'Выберите...'}</option>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{lang === 'uz' ? 'Sana' : 'Дата'}</label>
+            <input type="date" className={inputClass} value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{lang === 'uz' ? 'Kirish vaqti' : 'Время входа'}</label>
+              <input type="time" className={inputClass} value={checkIn} onChange={e => setCheckIn(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{lang === 'uz' ? 'Chiqish vaqti' : 'Время выхода'}</label>
+              <input type="time" className={inputClass} value={checkOut} onChange={e => setCheckOut(e.target.value)} placeholder={lang === 'uz' ? 'Ixtiyoriy' : 'Необязательно'} />
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2.5 px-6 pb-6">
+          <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all">
+            {lang === 'uz' ? 'Bekor' : 'Отмена'}
+          </button>
+          <button onClick={submit} disabled={saving || !employeeId || !date || !checkIn} className="flex-1 bg-amber-500 hover:bg-amber-400 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition-all">
+            {saving ? '...' : (lang === 'uz' ? 'Saqlash' : 'Сохранить')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AttendancePageInner() {
   const { t, lang } = useLang()
+  const { user } = useAuth()
   const searchParams = useSearchParams()
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
@@ -127,6 +210,7 @@ function AttendancePageInner() {
   const [sortBy, setSortBy] = useState<'checkIn' | 'checkOut' | 'hoursWorked'>('checkIn')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [selectedEmployee, setSelectedEmployee] = useState<{ id: string; name: string } | null>(null)
+  const [showManualEntry, setShowManualEntry] = useState(false)
 
   const toggleSort = (col: 'checkIn' | 'checkOut' | 'hoursWorked') => {
     if (sortBy === col) setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
@@ -199,16 +283,29 @@ function AttendancePageInner() {
             {lang === 'uz' ? `${records.length} ta xodim` : `${records.length} сотрудников`}
           </p>
         </div>
-        <div className="relative">
-          <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <input
-            type="date"
-            className="pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-300 transition-all shadow-sm"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+        <div className="flex items-center gap-2">
+          {(user?.role === 'DIRECTOR' || user?.role === 'HR') && (
+            <button
+              onClick={() => setShowManualEntry(true)}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              {lang === 'uz' ? 'Qo\'lda qo\'shish' : 'Добавить вручную'}
+            </button>
+          )}
+          <div className="relative">
+            <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <input
+              type="date"
+              className="pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-300 transition-all shadow-sm"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -350,6 +447,17 @@ function AttendancePageInner() {
           date={date}
           lang={lang as 'uz' | 'ru'}
           onClose={() => setSelectedEmployee(null)}
+        />
+      )}
+      {showManualEntry && (
+        <ManualEntryModal
+          defaultDate={date}
+          lang={lang}
+          onClose={() => setShowManualEntry(false)}
+          onSaved={() => {
+            setShowManualEntry(false)
+            fetch(`/api/attendance?date=${date}`).then(r => r.json()).then(setRecords)
+          }}
         />
       )}
     </div>
