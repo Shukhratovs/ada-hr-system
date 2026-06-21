@@ -13,6 +13,7 @@ interface AttendanceRecord {
   checkIn: string | null
   checkOut: string | null
   status: string
+  active: boolean
   hoursWorked: number | null
   employee: { id: string; name: string; role: string }
 }
@@ -248,7 +249,7 @@ function AttendancePageInner() {
       .finally(() => setLoading(false))
   }, [date])
 
-  const isAtWork = (r: AttendanceRecord) => (r.status === 'PRESENT' || r.status === 'LATE') && !r.checkOut
+  const isAtWork = (r: AttendanceRecord) => r.active
 
   const filtered = records
     .filter((r) =>

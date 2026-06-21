@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
         checkIn: null,
         checkOut: null,
         status: 'ABSENT',
+        active: false,
         hoursWorked: null,
         employee: emp,
       }
@@ -103,6 +104,7 @@ export async function GET(req: NextRequest) {
       checkIn: firstCheckIn,
       checkOut: latestCheckOut,
       status,
+      active: isActive,
       hoursWorked: totalHours > 0 ? totalHours : null,
       employee: emp,
     }
