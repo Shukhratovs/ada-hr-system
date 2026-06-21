@@ -20,6 +20,28 @@ export async function POST(req: NextRequest) {
   const checkOutDt = checkOutISO ? new Date(checkOutISO) : null
   const hoursWorked = checkOutDt ? calcHoursWorked(checkInDt, checkOutDt) : null
 
+  // If adding a checkout, try to update the existing open session first
+  if (checkOutDt) {
+    const openSession = await prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        date: { gte: dateUTC, lte: new Date(date + 'T23:59:59.999Z') },
+        checkOut: null,
+      },
+      orderBy: { checkIn: 'asc' },
+    })
+
+    if (openSession) {
+      const hours = calcHoursWorked(openSession.checkIn!, checkOutDt)
+      const updated = await prisma.attendance.update({
+        where: { id: openSession.id },
+        data: { checkOut: checkOutDt, hoursWorked: hours },
+      })
+      return NextResponse.json(updated)
+    }
+  }
+
+  // No open session found — create a new record
   const record = await prisma.attendance.create({
     data: {
       employeeId,
