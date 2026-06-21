@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { calcHoursWorked } from '@/lib/utils'
+import { sendTelegram } from '@/lib/telegram'
+
+function formatTime(date: Date) {
+  // Uzbekistan is UTC+5
+  const local = new Date(date.getTime() + 5 * 60 * 60 * 1000)
+  return local.toISOString().slice(11, 16)
+}
+
+function formatMinutes(hours: number) {
+  const total = Math.round(hours * 60)
+  if (total >= 60) return `${Math.floor(total / 60)}h ${total % 60}m`
+  return `${total}m`
+}
 
 export async function POST(req: NextRequest) {
   const { pin } = await req.json()
@@ -34,6 +47,7 @@ export async function POST(req: NextRequest) {
     await prisma.attendance.create({
       data: { employeeId: employee.id, date: todayDateUTC, checkIn: now, status: 'PRESENT' },
     })
+    await sendTelegram(`✅ <b>Kirdi</b>\n👤 ${employee.name}\n🕐 ${formatTime(now)}`)
     return NextResponse.json({ action: 'checkin', employee: { name: employee.name } })
   }
 
@@ -43,6 +57,7 @@ export async function POST(req: NextRequest) {
       where: { id: lastSession.id },
       data: { checkOut: now, hoursWorked: hours },
     })
+    await sendTelegram(`🚪 <b>Chiqdi</b>\n👤 ${employee.name}\n🕐 ${formatTime(now)}\n⏱ ${formatMinutes(hours)} ishladi`)
     return NextResponse.json({ action: 'checkout', hours, employee: { name: employee.name } })
   }
 
@@ -50,5 +65,6 @@ export async function POST(req: NextRequest) {
   await prisma.attendance.create({
     data: { employeeId: employee.id, date: todayDateUTC, checkIn: now, status: 'PRESENT' },
   })
+  await sendTelegram(`✅ <b>Kirdi</b>\n👤 ${employee.name}\n🕐 ${formatTime(now)}`)
   return NextResponse.json({ action: 'checkin', employee: { name: employee.name } })
 }
