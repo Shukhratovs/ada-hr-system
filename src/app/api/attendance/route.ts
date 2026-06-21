@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   // Daily view: return ALL active employees, aggregating multiple sessions per day
   const [employees, sessions] = await Promise.all([
     prisma.employee.findMany({
-      where: { active: true },
+      where: { active: true, role: { not: 'DIRECTOR' } },
       select: { id: true, name: true, role: true },
       orderBy: { name: 'asc' },
     }),
