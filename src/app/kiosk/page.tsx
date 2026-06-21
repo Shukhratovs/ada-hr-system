@@ -51,11 +51,17 @@ function speak(text: string) {
 export default function KioskPage() {
   const { lang } = useLang()
   const [pin, setPin] = useState('')
-  const [firstPin, setFirstPin] = useState('')
   const [state, setState] = useState<KioskState>('idle')
   const [result, setResult] = useState<Result | null>(null)
   const [clock, setClock] = useState(new Date())
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Ref-driven input logic — avoids stale closures, double-fire and timing races
+  const pinRef = useRef('')
+  const phaseRef = useRef<'first' | 'confirm'>('first')
+  const firstPinRef = useRef('')
+  const lockRef = useRef(false)        // blocks input while transitioning/submitting
+  const lastPressRef = useRef(0)        // dedupes ghost events from a single tap
 
   useEffect(() => {
     const id = setInterval(() => setClock(new Date()), 1000)
@@ -63,8 +69,11 @@ export default function KioskPage() {
   }, [])
 
   const reset = useCallback(() => {
+    pinRef.current = ''
+    firstPinRef.current = ''
+    phaseRef.current = 'first'
+    lockRef.current = false
     setPin('')
-    setFirstPin('')
     setState('idle')
     setResult(null)
   }, [])
@@ -111,42 +120,54 @@ export default function KioskPage() {
   }, [scheduleReset])
 
   const pressKey = useCallback((key: string) => {
-    if (state === 'submitting' || state === 'success_in' || state === 'success_out') return
+    // Ignore input while locked (transitioning / submitting / showing result)
+    if (lockRef.current) return
 
-    // Allow del/input during idle, confirming, error_mismatch (after restart)
-    if (state !== 'idle' && state !== 'confirming') return
+    // Dedupe ghost events fired by the same physical tap (well below human tap speed)
+    const now = Date.now()
+    if (now - lastPressRef.current < 40) return
+    lastPressRef.current = now
 
     if (key === 'del') {
-      setPin((p) => p.slice(0, -1))
+      pinRef.current = pinRef.current.slice(0, -1)
+      setPin(pinRef.current)
       return
     }
 
-    setPin((prev) => {
-      const next = prev + key
-      if (next.length === 4) {
-        if (state === 'idle') {
-          // First PIN entered — move to confirm
-          setTimeout(() => {
-            setFirstPin(next)
+    if (pinRef.current.length >= 4) return
+    pinRef.current += key
+    setPin(pinRef.current)
+
+    if (pinRef.current.length === 4) {
+      lockRef.current = true
+      const entered = pinRef.current
+      setTimeout(() => {
+        if (phaseRef.current === 'first') {
+          firstPinRef.current = entered
+          phaseRef.current = 'confirm'
+          pinRef.current = ''
+          setPin('')
+          setState('confirming')
+          lockRef.current = false
+        } else {
+          if (entered === firstPinRef.current) {
+            submitPin(entered)
+            // stays locked until reset()
+          } else {
+            playTone('error')
+            setState('error_mismatch')
+            // reset entry so the user can start over
+            phaseRef.current = 'first'
+            firstPinRef.current = ''
+            pinRef.current = ''
             setPin('')
-            setState('confirming')
-          }, 80)
-        } else if (state === 'confirming') {
-          // Second PIN entered — compare
-          setTimeout(() => {
-            if (next === firstPin) {
-              submitPin(next)
-            } else {
-              playTone('error')
-              setState('error_mismatch')
-              scheduleReset(3500)
-            }
-          }, 80)
+            scheduleReset(3500)
+            lockRef.current = false
+          }
         }
-      }
-      return next
-    })
-  }, [state, firstPin, submitPin, scheduleReset])
+      }, 250)
+    }
+  }, [submitPin, scheduleReset])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -226,7 +247,7 @@ export default function KioskPage() {
               if (key === 'del') return (
                 <button
                   key="del"
-                  onPointerDown={(e) => { e.preventDefault(); pressKey('del') }}
+                  onClick={() => pressKey('del')}
                   className="w-20 h-20 rounded-2xl bg-slate-800/60 active:bg-slate-600/60 text-slate-400 flex items-center justify-center transition-all touch-manipulation"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -237,7 +258,7 @@ export default function KioskPage() {
               return (
                 <button
                   key={key}
-                  onPointerDown={(e) => { e.preventDefault(); pressKey(key) }}
+                  onClick={() => pressKey(key)}
                   className="w-20 h-20 rounded-2xl bg-slate-800/60 active:bg-amber-500/30 active:scale-95 text-white text-2xl font-semibold transition-all duration-100 border border-slate-700/40 touch-manipulation"
                 >
                   {key}
