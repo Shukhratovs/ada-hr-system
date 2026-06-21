@@ -284,9 +284,8 @@ function AttendancePageInner() {
     absent: records.filter((r) => !isAtWork(r)).length,
   }
 
-  const statusBadge = (status: string, checkOut: string | null) => {
-    const atWork = (status === 'PRESENT' || status === 'LATE') && !checkOut
-    if (atWork)
+  const statusBadge = (r: AttendanceRecord) => {
+    if (r.active)
       return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{t('present')}</span>
     return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-500"><span className="w-1.5 h-1.5 rounded-full bg-red-400" />{t('absent')}</span>
   }
@@ -441,7 +440,7 @@ function AttendancePageInner() {
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3.5">{statusBadge(r.status, r.checkOut)}</td>
+                  <td className="px-4 py-3.5">{statusBadge(r)}</td>
                   <td className="px-4 py-3.5">
                     {!noRecord ? (
                       <button
