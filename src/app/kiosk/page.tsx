@@ -61,7 +61,7 @@ export default function KioskPage() {
   const phaseRef = useRef<'first' | 'confirm'>('first')
   const firstPinRef = useRef('')
   const lockRef = useRef(false)        // blocks input while transitioning/submitting
-  const lastPressRef = useRef(0)        // dedupes ghost events from a single tap
+  const lastTouchRef = useRef(0)        // suppresses the ghost click that follows a touch
 
   useEffect(() => {
     const id = setInterval(() => setClock(new Date()), 1000)
@@ -122,11 +122,6 @@ export default function KioskPage() {
   const pressKey = useCallback((key: string) => {
     // Ignore input while locked (transitioning / submitting / showing result)
     if (lockRef.current) return
-
-    // Dedupe ghost events fired by the same physical tap (well below human tap speed)
-    const now = Date.now()
-    if (now - lastPressRef.current < 40) return
-    lastPressRef.current = now
 
     if (key === 'del') {
       pinRef.current = pinRef.current.slice(0, -1)
@@ -189,6 +184,20 @@ export default function KioskPage() {
   const isInputActive = state === 'idle' || state === 'confirming'
   const keys = ['1','2','3','4','5','6','7','8','9','del','0','']
 
+  // Touch/click coordination: on iOS one tap fires touchend + a ghost click.
+  // preventDefault on touchend suppresses the ghost; the click guard is a backstop.
+  const keyProps = (key: string) => ({
+    onTouchEnd: (e: React.TouchEvent) => {
+      e.preventDefault()
+      lastTouchRef.current = Date.now()
+      pressKey(key)
+    },
+    onClick: () => {
+      if (Date.now() - lastTouchRef.current < 700) return // ignore ghost click after touch
+      pressKey(key)
+    },
+  })
+
   return (
     <div className={`fixed inset-0 bg-gradient-to-br ${bgClass} flex flex-col items-center justify-center transition-all duration-500 select-none`}>
 
@@ -247,7 +256,7 @@ export default function KioskPage() {
               if (key === 'del') return (
                 <button
                   key="del"
-                  onClick={() => pressKey('del')}
+                  {...keyProps('del')}
                   className="w-20 h-20 rounded-2xl bg-slate-800/60 active:bg-slate-600/60 text-slate-400 flex items-center justify-center transition-all touch-manipulation"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -258,7 +267,7 @@ export default function KioskPage() {
               return (
                 <button
                   key={key}
-                  onClick={() => pressKey(key)}
+                  {...keyProps(key)}
                   className="w-20 h-20 rounded-2xl bg-slate-800/60 active:bg-amber-500/30 active:scale-95 text-white text-2xl font-semibold transition-all duration-100 border border-slate-700/40 touch-manipulation"
                 >
                   {key}
