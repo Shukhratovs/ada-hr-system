@@ -139,10 +139,13 @@ function ManualEntryModal({ onClose, onSaved, defaultDate, lang }: {
   const submit = async () => {
     if (!employeeId || !date || !checkIn) return
     setSaving(true)
+    // Convert local time to UTC ISO — browser knows the user's timezone
+    const checkInISO = new Date(date + 'T' + checkIn).toISOString()
+    const checkOutISO = checkOut ? new Date(date + 'T' + checkOut).toISOString() : null
     const res = await fetch('/api/attendance/manual', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ employeeId, date, checkIn, checkOut: checkOut || null }),
+      body: JSON.stringify({ employeeId, date, checkInISO, checkOutISO }),
     })
     setSaving(false)
     if (res.ok) { toast.success(lang === 'uz' ? 'Qo\'shildi' : 'Добавлено'); onSaved(); onClose() }

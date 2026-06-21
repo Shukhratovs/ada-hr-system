@@ -9,15 +9,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { employeeId, date, checkIn, checkOut } = await req.json()
+  const { employeeId, date, checkInISO, checkOutISO } = await req.json()
 
-  if (!employeeId || !date || !checkIn) {
-    return NextResponse.json({ error: 'employeeId, date, checkIn required' }, { status: 400 })
+  if (!employeeId || !date || !checkInISO) {
+    return NextResponse.json({ error: 'employeeId, date, checkInISO required' }, { status: 400 })
   }
 
   const dateUTC = new Date(date + 'T00:00:00.000Z')
-  const checkInDt = new Date(date + 'T' + checkIn + ':00.000Z')
-  const checkOutDt = checkOut ? new Date(date + 'T' + checkOut + ':00.000Z') : null
+  const checkInDt = new Date(checkInISO)
+  const checkOutDt = checkOutISO ? new Date(checkOutISO) : null
   const hoursWorked = checkOutDt ? calcHoursWorked(checkInDt, checkOutDt) : null
 
   const record = await prisma.attendance.create({
