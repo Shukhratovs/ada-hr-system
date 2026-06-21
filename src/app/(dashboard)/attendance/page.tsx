@@ -128,16 +128,33 @@ function ManualEntryModal({ onClose, onSaved, defaultDate, lang }: {
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [employeeId, setEmployeeId] = useState('')
   const [date, setDate] = useState(defaultDate)
-  const [checkIn, setCheckIn] = useState(() => {
-    const now = new Date()
-    return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
-  })
+  const [checkIn, setCheckIn] = useState('09:00')
   const [checkOut, setCheckOut] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     fetch('/api/employees').then(r => r.json()).then(setEmployees)
   }, [])
+
+  // When employee or date changes, pre-fill checkIn from existing kiosk record if available
+  useEffect(() => {
+    if (!employeeId || !date) { setCheckIn('09:00'); setCheckOut(''); return }
+    fetch(`/api/attendance?date=${date}&employeeId=${employeeId}`)
+      .then(r => r.json())
+      .then((sessions: Array<{ checkIn: string | null; checkOut: string | null }>) => {
+        if (!sessions.length) { setCheckIn('09:00'); setCheckOut(''); return }
+        // Find last open session (no checkout) — that's the one we likely want to add checkout for
+        const openSession = [...sessions].reverse().find(s => s.checkIn && !s.checkOut)
+        if (openSession?.checkIn) {
+          const t = new Date(openSession.checkIn)
+          setCheckIn(t.getHours().toString().padStart(2, '0') + ':' + t.getMinutes().toString().padStart(2, '0'))
+          setCheckOut('')
+        } else {
+          setCheckIn('09:00')
+          setCheckOut('')
+        }
+      })
+  }, [employeeId, date])
 
   const submit = async () => {
     if (!employeeId || !date || !checkIn) return
