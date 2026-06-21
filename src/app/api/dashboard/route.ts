@@ -11,7 +11,7 @@ export async function GET() {
 
   const [totalEmployees, todayAttendance, weeklyPayroll] =
     await Promise.all([
-      prisma.employee.count({ where: { active: true } }),
+      prisma.employee.count({ where: { active: true, role: { not: 'DIRECTOR' } } }),
 
       prisma.attendance.findMany({
         where: { date: { gte: todayStart, lte: todayEnd } },
