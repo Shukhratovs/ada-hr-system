@@ -18,6 +18,7 @@ export async function GET() {
     },
   })
 
+  if (!employee) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(employee)
 }
 

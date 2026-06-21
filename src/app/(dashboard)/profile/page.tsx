@@ -36,8 +36,15 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetch('/api/profile')
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401 || r.status === 404) {
+          window.location.href = '/login'
+          return null
+        }
+        return r.json()
+      })
       .then((data) => {
+        if (!data) return
         setProfile(data)
         setName(data.name)
       })
