@@ -31,39 +31,43 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date()
-  const todayStr = now.toISOString().slice(0, 10)
-  const todayDateUTC = new Date(todayStr + 'T00:00:00.000Z')
-  const todayEndUTC = new Date(todayStr + 'T23:59:59.999Z')
+  const MAX_SHIFT_HOURS = 16
 
-  const lastSession = await prisma.attendance.findFirst({
-    where: {
-      employeeId: employee.id,
-      date: { gte: todayDateUTC, lte: todayEndUTC },
-    },
+  // Uzbekistan local date (UTC+5) — used for the stored `date` field so it
+  // groups correctly in stats/payroll regardless of the UTC day boundary.
+  const uzDateStr = new Date(now.getTime() + 5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const dateUTC = new Date(uzDateStr + 'T00:00:00.000Z')
+
+  // Decide check-in vs check-out by the employee's most recent OPEN session
+  // (no checkout yet), regardless of date. This is timezone-agnostic and
+  // correctly handles shifts that cross the UTC/local midnight boundary.
+  const openSession = await prisma.attendance.findFirst({
+    where: { employeeId: employee.id, checkOut: null },
     orderBy: { checkIn: 'desc' },
   })
 
-  if (!lastSession) {
-    await prisma.attendance.create({
-      data: { employeeId: employee.id, date: todayDateUTC, checkIn: now, status: 'PRESENT' },
-    })
-    await sendTelegram(`✅ <b>Kirdi</b>\n👤 ${employee.name}\n🕐 ${formatTime(now)}`)
-    return NextResponse.json({ action: 'checkin', employee: { name: employee.name } })
-  }
-
-  if (!lastSession.checkOut) {
-    const hours = calcHoursWorked(lastSession.checkIn!, now)
+  if (openSession?.checkIn) {
+    const hours = calcHoursWorked(openSession.checkIn, now)
+    if (hours <= MAX_SHIFT_HOURS) {
+      // CHECK OUT
+      await prisma.attendance.update({
+        where: { id: openSession.id },
+        data: { checkOut: now, hoursWorked: hours },
+      })
+      await sendTelegram(`🚪 <b>Chiqdi</b>\n👤 ${employee.name}\n🕐 ${formatTime(now)}\n⏱ ${formatMinutes(hours)} ishladi`)
+      return NextResponse.json({ action: 'checkout', hours, employee: { name: employee.name } })
+    }
+    // Stale session (forgot to check out long ago) — close it without counting,
+    // so the employee isn't stuck as "Ishda", then fall through to a fresh check-in.
     await prisma.attendance.update({
-      where: { id: lastSession.id },
-      data: { checkOut: now, hoursWorked: hours },
+      where: { id: openSession.id },
+      data: { checkOut: openSession.checkIn, hoursWorked: 0 },
     })
-    await sendTelegram(`🚪 <b>Chiqdi</b>\n👤 ${employee.name}\n🕐 ${formatTime(now)}\n⏱ ${formatMinutes(hours)} ishladi`)
-    return NextResponse.json({ action: 'checkout', hours, employee: { name: employee.name } })
   }
 
-  // New check-in session
+  // CHECK IN
   await prisma.attendance.create({
-    data: { employeeId: employee.id, date: todayDateUTC, checkIn: now, status: 'PRESENT' },
+    data: { employeeId: employee.id, date: dateUTC, checkIn: now, status: 'PRESENT' },
   })
   await sendTelegram(`✅ <b>Kirdi</b>\n👤 ${employee.name}\n🕐 ${formatTime(now)}`)
   return NextResponse.json({ action: 'checkin', employee: { name: employee.name } })
