@@ -299,18 +299,18 @@ function AttendancePageInner() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">{t('attendance')}</h1>
           <p className="text-slate-400 text-sm mt-0.5 font-medium">
             {lang === 'uz' ? `${records.length} ta xodim` : `${records.length} сотрудников`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {(user?.role === 'DIRECTOR' || user?.role === 'HR') && (
             <button
               onClick={() => setShowManualEntry(true)}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />

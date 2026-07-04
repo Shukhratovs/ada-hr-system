@@ -207,13 +207,13 @@ export default function PayrollPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">{t('payroll')}</h1>
           <p className="text-slate-400 text-sm mt-0.5 font-medium">{weekLabel}</p>
         </div>
         {/* Week nav */}
-        <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="flex items-center justify-between sm:justify-start bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm w-full sm:w-auto">
           <button
             onClick={() => setWeekDate(subWeeks(weekDate, 1))}
             className="p-2.5 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-r border-slate-100"
@@ -236,7 +236,7 @@ export default function PayrollPage() {
 
       {/* Summary bar */}
       {records.length > 0 && (
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
               {lang === 'uz' ? 'Xodimlar' : 'Сотрудников'}
