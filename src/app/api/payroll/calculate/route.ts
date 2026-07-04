@@ -66,7 +66,16 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    const grossPay = BigInt(Math.round(totalHours * emp.hourlyRate))
+    // Sunday hours are paid at sundayRate (falls back to regular rate)
+    const sundayRate = (emp as typeof emp & { sundayRate: number | null }).sundayRate ?? emp.hourlyRate
+    const grossNum = emp.attendances.reduce(
+      (sum: number, a: { hoursWorked: number | null; date: Date }) => {
+        const isSunday = new Date(a.date).getUTCDay() === 0
+        return sum + (a.hoursWorked ?? 0) * (isSunday ? sundayRate : emp.hourlyRate)
+      },
+      0
+    )
+    const grossPay = BigInt(Math.round(grossNum))
     const totalAdvances = advancesMap.get(emp.id) ?? BigInt(0)
     const netPay = grossPay - totalAdvances
 

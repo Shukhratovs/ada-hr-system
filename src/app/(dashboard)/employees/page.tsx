@@ -11,6 +11,7 @@ interface Employee {
   name: string
   role: string
   hourlyRate: number
+  sundayRate: number | null
   phone: string
   pin: string | null
   active: boolean
@@ -153,6 +154,11 @@ export default function EmployeesPage() {
                   <td className="px-4 py-3.5 text-slate-700 font-semibold text-sm tabular-nums">
                     {emp.hourlyRate.toLocaleString()}
                     <span className="text-slate-400 font-normal text-xs ml-0.5">{t('soum')}</span>
+                    {emp.sundayRate != null && emp.sundayRate !== emp.hourlyRate && (
+                      <div className="text-[11px] text-amber-600 font-medium mt-0.5">
+                        {lang === 'uz' ? 'Yak: ' : 'Вс: '}{emp.sundayRate.toLocaleString()} {t('soum')}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3.5 text-center">
                     {emp.pin ? (

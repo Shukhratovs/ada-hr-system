@@ -30,6 +30,7 @@ model Employee {
   name           String
   role           Role      @default(EMPLOYEE)
   hourlyRate     Int
+  sundayRate     Int?
   shiftStart     String    @default("09:00")
   shiftEnd       String    @default("18:00")
   workDays       Int[]

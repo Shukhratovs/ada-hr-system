@@ -11,12 +11,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
   const body = await req.json()
-  const { name, role, hourlyRate, phone, password, pin, active } = body
+  const { name, role, hourlyRate, sundayRate, phone, password, pin, active } = body
 
   const updateData: Record<string, unknown> = {
     name,
     role,
     hourlyRate: Number(hourlyRate),
+    sundayRate: sundayRate ? Number(sundayRate) : null,
     phone: phone || null,
     pin: pin || null,
     active,

@@ -8,7 +8,8 @@ interface Employee {
   id?: string
   name: string
   role: string
-  hourlyRate: number
+  hourlyRate: number | ''
+  sundayRate?: number | null
   phone: string
   pin?: string | null
   active?: boolean
@@ -26,7 +27,8 @@ export default function EmployeeModal({ employee, onClose, onSaved }: Props) {
   const [form, setForm] = useState<Employee>({
     name: '',
     role: 'EMPLOYEE',
-    hourlyRate: 50000,
+    hourlyRate: '',
+    sundayRate: null,
     phone: '',
   })
   const [password, setPassword] = useState('')
@@ -39,6 +41,9 @@ export default function EmployeeModal({ employee, onClose, onSaved }: Props) {
 
   const submit = async () => {
     if (!form.name.trim()) return toast.error(t('required'))
+    if (!form.hourlyRate || Number(form.hourlyRate) <= 0) {
+      return toast.error(lang === 'uz' ? 'Soatlik ish haqini kiriting' : 'Введите почасовую ставку')
+    }
     if ((form.role === 'HR' || form.role === 'DIRECTOR') && !employee?.id && !password) {
       return toast.error(
         lang === 'uz'
@@ -129,23 +134,50 @@ export default function EmployeeModal({ employee, onClose, onSaved }: Props) {
             </select>
           </div>
 
-          {/* Hourly rate */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-              {t('hourlyRate')}
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                className={inputClass}
-                value={form.hourlyRate}
-                onChange={(e) => setForm({ ...form, hourlyRate: Number(e.target.value) })}
-              />
-              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-medium pointer-events-none">
-                {t('soum')}/{t('hour')}
-              </span>
+          {/* Hourly rates: regular (Mon–Sat) + Sunday */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                {lang === 'uz' ? 'Oddiy kunlar (Du–Sha)' : 'Обычные дни (Пн–Сб)'}
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1"
+                  className={inputClass}
+                  value={form.hourlyRate}
+                  onChange={(e) => setForm({ ...form, hourlyRate: e.target.value === '' ? '' : Number(e.target.value) })}
+                  placeholder="0"
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-medium pointer-events-none">
+                  {t('soum')}/{t('hour')}
+                </span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                {lang === 'uz' ? 'Yakshanba' : 'Воскресенье'}
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1"
+                  className={inputClass}
+                  value={form.sundayRate ?? ''}
+                  onChange={(e) => setForm({ ...form, sundayRate: e.target.value === '' ? null : Number(e.target.value) })}
+                  placeholder={form.hourlyRate ? String(form.hourlyRate) : '0'}
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-medium pointer-events-none">
+                  {t('soum')}/{t('hour')}
+                </span>
+              </div>
             </div>
           </div>
+          <p className="text-[11px] text-slate-400 -mt-2">
+            {lang === 'uz'
+              ? "Yakshanba bo'sh qolsa, oddiy stavka qo'llanadi"
+              : 'Если воскресенье пустое, применяется обычная ставка'}
+          </p>
 
           {/* Phone */}
           <div>

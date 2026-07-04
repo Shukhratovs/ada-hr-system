@@ -12,6 +12,7 @@ export async function GET() {
       name: true,
       role: true,
       hourlyRate: true,
+      sundayRate: true,
       phone: true,
       active: true,
       createdAt: true,
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { name, role, hourlyRate, phone, password, pin } = body
+  const { name, role, hourlyRate, sundayRate, phone, password, pin } = body
 
   if (!name || !role || !hourlyRate) {
     return NextResponse.json({ error: 'Required fields missing' }, { status: 400 })
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
       name,
       role,
       hourlyRate: Number(hourlyRate),
+      sundayRate: sundayRate ? Number(sundayRate) : null,
       shiftStart: '09:00',
       shiftEnd: '18:00',
       workDays: [],

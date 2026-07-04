@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const [employees, advances, attendanceRecords] = await Promise.all([
     prisma.employee.findMany({
       where: { active: true },
-      select: { id: true, name: true, role: true, hourlyRate: true },
+      select: { id: true, name: true, role: true, hourlyRate: true, sundayRate: true },
       orderBy: { name: 'asc' },
     }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,10 +50,16 @@ export async function GET(req: NextRequest) {
     advancesMap.set(adv.employeeId, prev + Number(adv.amount))
   }
 
-  // Group attendance by employee — deduplicate by date for day counts
-  const byEmployee = new Map<string, { present: number; totalHours: number; seenDates: Set<string> }>()
+  // Rates per employee — Sunday hours are paid at sundayRate (falls back to regular)
+  const rateMap = new Map<string, { regular: number; sunday: number }>()
   for (const emp of employees) {
-    byEmployee.set(emp.id, { present: 0, totalHours: 0, seenDates: new Set() })
+    rateMap.set(emp.id, { regular: emp.hourlyRate, sunday: emp.sundayRate ?? emp.hourlyRate })
+  }
+
+  // Group attendance by employee — deduplicate by date for day counts
+  const byEmployee = new Map<string, { present: number; totalHours: number; earnings: number; seenDates: Set<string> }>()
+  for (const emp of employees) {
+    byEmployee.set(emp.id, { present: 0, totalHours: 0, earnings: 0, seenDates: new Set() })
   }
 
   for (const rec of attendanceRecords) {
@@ -67,12 +73,15 @@ export async function GET(req: NextRequest) {
         if (rec.status === 'PRESENT' || rec.status === 'LATE') entry.present++
       }
       entry.totalHours += rec.hoursWorked
+      const rates = rateMap.get(rec.employeeId)!
+      const isSunday = new Date(rec.date).getUTCDay() === 0
+      entry.earnings += rec.hoursWorked * (isSunday ? rates.sunday : rates.regular)
     }
   }
 
   const result = employees.map((emp) => {
-    const stats = byEmployee.get(emp.id) ?? { present: 0, totalHours: 0, seenDates: new Set<string>() }
-    const totalEarnings = Math.round(stats.totalHours * emp.hourlyRate)
+    const stats = byEmployee.get(emp.id) ?? { present: 0, totalHours: 0, earnings: 0, seenDates: new Set<string>() }
+    const totalEarnings = Math.round(stats.earnings)
     const totalAdvances = advancesMap.get(emp.id) ?? 0
     const debt = Math.max(0, totalAdvances - totalEarnings)
     return {
