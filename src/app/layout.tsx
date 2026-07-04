@@ -21,8 +21,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="uz" className="h-full">
+    <html lang="uz" className="h-full" suppressHydrationWarning>
       <body className={`${jakarta.className} h-full`}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.theme==='dark')document.documentElement.classList.add('dark')}catch(e){}`,
+          }}
+        />
         <LanguageProvider>
           <AuthProvider>
             {children}

@@ -1,10 +1,37 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useLang } from './LanguageProvider'
 import { useAuth } from './AuthProvider'
 import Logo from './Logo'
+
+function useTheme() {
+  const [dark, setDark] = useState(false)
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains('dark'))
+  }, [])
+  const toggle = () => {
+    const next = !dark
+    setDark(next)
+    document.documentElement.classList.toggle('dark', next)
+    try { localStorage.setItem('theme', next ? 'dark' : 'light') } catch {}
+  }
+  return { dark, toggle }
+}
+
+function ThemeIcon({ dark }: { dark: boolean }) {
+  return dark ? (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  ) : (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+    </svg>
+  )
+}
 
 const navItems = [
   {
@@ -93,6 +120,7 @@ export default function Sidebar() {
   const pathname = usePathname()
   const { t, lang, setLang } = useLang()
   const { user, logout } = useAuth()
+  const { dark, toggle } = useTheme()
 
   const allNavItems = [
     ...navItems,
@@ -140,18 +168,27 @@ export default function Sidebar() {
 
         <div className="px-3 pb-5 pt-3 space-y-3">
           <div className="mx-1 border-t border-slate-800/60 mb-3" />
-          <div className="flex gap-1 bg-slate-900 rounded-xl p-1">
-            {(['uz', 'ru'] as const).map((l) => (
-              <button
-                key={l}
-                onClick={() => setLang(l)}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 ${
-                  lang === l ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                {l.toUpperCase()}
-              </button>
-            ))}
+          <div className="flex gap-1.5 items-stretch">
+            <div className="flex flex-1 gap-1 bg-slate-900 rounded-xl p-1">
+              {(['uz', 'ru'] as const).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLang(l)}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 ${
+                    lang === l ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={toggle}
+              className="w-10 bg-slate-900 rounded-xl flex items-center justify-center text-slate-500 hover:text-amber-400 transition-colors"
+              title={dark ? (lang === 'uz' ? 'Kunduzgi rejim' : 'Дневной режим') : (lang === 'uz' ? 'Tungi rejim' : 'Ночной режим')}
+            >
+              <ThemeIcon dark={dark} />
+            </button>
           </div>
           {user && (
             <div className="bg-slate-900 rounded-2xl p-2.5 space-y-1">
@@ -198,6 +235,12 @@ export default function Sidebar() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggle}
+            className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-slate-500 active:text-amber-400 transition-colors"
+          >
+            <ThemeIcon dark={dark} />
+          </button>
           <div className="flex gap-0.5 bg-slate-900 rounded-lg p-0.5">
             {(['uz', 'ru'] as const).map((l) => (
               <button
