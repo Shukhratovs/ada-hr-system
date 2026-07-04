@@ -107,6 +107,21 @@ const statsItem = {
   ),
 }
 
+const analyticsItem = {
+  href: '/analytics',
+  key: 'analytics' as const,
+  icon: (
+    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+    </svg>
+  ),
+  mobileIcon: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+    </svg>
+  ),
+}
+
 function Avatar({ name }: { name: string }) {
   const initials = name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
   return (
@@ -124,7 +139,7 @@ export default function Sidebar() {
 
   const allNavItems = [
     ...navItems,
-    ...(user?.role === 'DIRECTOR' ? [statsItem] : []),
+    ...(user?.role === 'DIRECTOR' ? [statsItem, analyticsItem] : []),
   ]
 
   return (
@@ -272,6 +287,7 @@ export default function Sidebar() {
             attendance: lang === 'uz' ? 'Davomat' : 'Учёт',
             payroll: lang === 'uz' ? 'Maosh' : 'Зарплата',
             stats: lang === 'uz' ? 'Statistika' : 'Статистика',
+            analytics: lang === 'uz' ? 'Analitika' : 'Аналитика',
           }
           return (
             <Link

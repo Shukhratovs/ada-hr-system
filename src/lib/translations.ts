@@ -118,6 +118,7 @@ const uz = {
 
   // Stats
   stats: "Xodimlar statistikasi",
+  analytics: "Analitika",
   statsSubtitle: "Sana oralig'idagi ko'rsatkichlar",
   fromDate: "Dan",
   toDate: "Gacha",
@@ -247,6 +248,7 @@ const ru = {
 
   // Stats
   stats: "Статистика сотрудников",
+  analytics: "Аналитика",
   statsSubtitle: "Показатели за период",
   fromDate: "С",
   toDate: "По",

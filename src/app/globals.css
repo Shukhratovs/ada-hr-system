@@ -19,6 +19,24 @@
   box-sizing: border-box;
 }
 
+/* Chart roles — validated palette (blue series, brand-red accent) */
+:root {
+  --viz-series: #2a78d6;
+  --viz-series-soft: rgba(42, 120, 214, 0.14);
+  --viz-accent: #c8373c;
+  --viz-grid: #e2e8f0;
+  --viz-ink: #475569;
+  --viz-muted: #94a3b8;
+}
+.dark {
+  --viz-series: #3987e5;
+  --viz-series-soft: rgba(57, 135, 229, 0.16);
+  --viz-accent: #e05257;
+  --viz-grid: #1e293b;
+  --viz-ink: #cbd5e1;
+  --viz-muted: #64748b;
+}
+
 body {
   background: #f1f5f9;
   color: #0f172a;
