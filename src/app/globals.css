@@ -50,6 +50,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
+/* iOS gives date/time inputs an intrinsic width that overflows containers */
+input[type="date"],
+input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2.65rem;
+}
+
 .scrollbar-thin::-webkit-scrollbar {
   width: 3px;
 }

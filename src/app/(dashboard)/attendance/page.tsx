@@ -200,11 +200,11 @@ function ManualEntryModal({ onClose, onSaved, defaultDate, lang }: {
             <input type="date" className={inputClass} value={date} onChange={e => setDate(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="min-w-0">
               <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{lang === 'uz' ? 'Kirish vaqti' : 'Время входа'}</label>
               <input type="time" className={inputClass} value={checkIn} onChange={e => setCheckIn(e.target.value)} />
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{lang === 'uz' ? 'Chiqish vaqti' : 'Время выхода'}</label>
               <input type="time" className={inputClass} value={checkOut} onChange={e => setCheckOut(e.target.value)} placeholder={lang === 'uz' ? 'Ixtiyoriy' : 'Необязательно'} />
             </div>
